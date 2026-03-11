@@ -16,7 +16,7 @@
  *   新版用个性化 PPR 排序 → 根据当前查询动态排序
  */
 
-import Database from "better-sqlite3";
+import { DatabaseSync } from "@photostructure/sqlite";
 import { createHash } from "crypto";
 import type { GmConfig, RecallResult, GmNode } from "../types.ts";
 import type { EmbedFn } from "../engine/embed.ts";
@@ -30,7 +30,7 @@ import { personalizedPageRank } from "../graph/pagerank.ts";
 export class Recaller {
   private embed: EmbedFn | null = null;
 
-  constructor(private db: Database.Database, private cfg: GmConfig) {}
+  constructor(private db: DatabaseSync, private cfg: GmConfig) {}
 
   setEmbedFn(fn: EmbedFn): void { this.embed = fn; }
 

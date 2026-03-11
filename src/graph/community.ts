@@ -24,7 +24,7 @@
  *   - kg_stats 展示社区分布
  */
 
-import Database from "better-sqlite3";
+import { DatabaseSync } from "@photostructure/sqlite";
 import { updateCommunities } from "../store/store.ts";
 
 export interface CommunityResult {
@@ -39,7 +39,7 @@ export interface CommunityResult {
  *
  * 把有向边当无向边处理（知识关联不分方向）
  */
-export function detectCommunities(db: Database.Database, maxIter = 50): CommunityResult {
+export function detectCommunities(db: DatabaseSync, maxIter = 50): CommunityResult {
   // 读取活跃节点
   const nodeRows = db.prepare(
     "SELECT id FROM gm_nodes WHERE status='active'"
@@ -149,7 +149,7 @@ export function detectCommunities(db: Database.Database, maxIter = 50): Communit
  * 获取同社区的节点 ID 列表
  * recall 时用：找到种子节点 → 拉同社区的其他节点作为补充
  */
-export function getCommunityPeers(db: Database.Database, nodeId: string, limit = 5): string[] {
+export function getCommunityPeers(db: DatabaseSync, nodeId: string, limit = 5): string[] {
   const row = db.prepare(
     "SELECT community_id FROM gm_nodes WHERE id=? AND status='active'"
   ).get(nodeId) as any;

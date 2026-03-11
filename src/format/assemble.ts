@@ -5,7 +5,7 @@
  * Email: Wywelljob@gmail.com
  */
 
-import Database from "better-sqlite3";
+import { DatabaseSync } from "@photostructure/sqlite";
 import type { GmNode, GmEdge } from "../types.ts";
 
 const CHARS_PER_TOKEN = 3;
@@ -78,7 +78,7 @@ export function buildSystemPromptAddition(params: {
  * 组装知识图谱为 XML context
  */
 export function assembleContext(
-  db: Database.Database,
+  db: DatabaseSync,
   params: {
     tokenBudget: number;
     activeNodes: GmNode[];

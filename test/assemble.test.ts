@@ -6,14 +6,14 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import Database from "better-sqlite3";
+import { DatabaseSync } from "@photostructure/sqlite";
 import { createTestDb, insertNode, insertEdge } from "./helpers.ts";
 import { assembleContext, buildSystemPromptAddition } from "../src/format/assemble.ts";
 import { sanitizeToolUseResultPairing } from "../src/format/transcript-repair.ts";
 import { findById } from "../src/store/store.ts";
 import type { GmNode, GmEdge } from "../src/types.ts";
 
-let db: Database.Database;
+let db: DatabaseSync;
 
 beforeEach(() => { db = createTestDb(); });
 

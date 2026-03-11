@@ -14,7 +14,7 @@
  * 注意：个性化 PPR 不在这里跑，它在 recall 时实时计算。
  */
 
-import Database from "better-sqlite3";
+import { DatabaseSync } from "@photostructure/sqlite";
 import type { GmConfig } from "../types.ts";
 import { computeGlobalPageRank, invalidateGraphCache, type GlobalPageRankResult } from "./pagerank.ts";
 import { detectCommunities, type CommunityResult } from "./community.ts";
@@ -27,7 +27,7 @@ export interface MaintenanceResult {
   durationMs: number;
 }
 
-export function runMaintenance(db: Database.Database, cfg: GmConfig): MaintenanceResult {
+export function runMaintenance(db: DatabaseSync, cfg: GmConfig): MaintenanceResult {
   const start = Date.now();
 
   // 去重/新增节点后清除图结构缓存

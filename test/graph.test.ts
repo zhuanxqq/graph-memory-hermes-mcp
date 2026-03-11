@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import Database from "better-sqlite3";
+import { DatabaseSync } from "@photostructure/sqlite";
 import { createTestDb, insertNode, insertEdge } from "./helpers.ts";
 import { personalizedPageRank, computeGlobalPageRank, invalidateGraphCache } from "../src/graph/pagerank.ts";
 import { detectCommunities, getCommunityPeers } from "../src/graph/community.ts";
@@ -17,7 +17,7 @@ import { runMaintenance } from "../src/graph/maintenance.ts";
 import { saveVector } from "../src/store/store.ts";
 import { DEFAULT_CONFIG, type GmConfig } from "../src/types.ts";
 
-let db: Database.Database;
+let db: DatabaseSync;
 const cfg: GmConfig = { ...DEFAULT_CONFIG };
 
 beforeEach(() => {

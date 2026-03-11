@@ -7,16 +7,16 @@
  * 提供内存 SQLite 数据库，每个测试用例独立，互不干扰
  */
 
-import Database from "better-sqlite3";
+import { DatabaseSync } from "@photostructure/sqlite";
 
 /**
  * 创建内存数据库 + 完整 migration
  * 等价于 getDb() 但用 :memory: 不写磁盘
  */
-export function createTestDb(): Database.Database {
-  const db = new Database(":memory:");
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
+export function createTestDb(): DatabaseSync {
+  const db = new DatabaseSync(":memory:");
+  db.exec("PRAGMA journal_mode = WAL");
+  db.exec("PRAGMA foreign_keys = ON");
 
   // m1: 核心表
   db.exec(`
@@ -120,7 +120,7 @@ export function createTestDb(): Database.Database {
  * 快速插入测试节点
  */
 export function insertNode(
-  db: Database.Database,
+  db: DatabaseSync,
   opts: {
     id?: string;
     type?: string;
@@ -155,7 +155,7 @@ export function insertNode(
  * 快速插入测试边
  */
 export function insertEdge(
-  db: Database.Database,
+  db: DatabaseSync,
   opts: {
     fromId: string;
     toId: string;

@@ -5,7 +5,7 @@
  * Email: Wywelljob@gmail.com
  */
 
-import Database from "better-sqlite3";
+import { DatabaseSync } from "@photostructure/sqlite";
 import { createHash } from "crypto";
 import type { GmNode, GmEdge, EdgeType, NodeType, Signal } from "../types.ts";
 
@@ -46,26 +46,26 @@ function normalizeName(name: string): string {
 
 // ─── 节点 CRUD ───────────────────────────────────────────────
 
-export function findByName(db: Database.Database, name: string): GmNode | null {
+export function findByName(db: DatabaseSync, name: string): GmNode | null {
   const r = db.prepare("SELECT * FROM gm_nodes WHERE name = ?").get(normalizeName(name)) as any;
   return r ? toNode(r) : null;
 }
 
-export function findById(db: Database.Database, id: string): GmNode | null {
+export function findById(db: DatabaseSync, id: string): GmNode | null {
   const r = db.prepare("SELECT * FROM gm_nodes WHERE id = ?").get(id) as any;
   return r ? toNode(r) : null;
 }
 
-export function allActiveNodes(db: Database.Database): GmNode[] {
+export function allActiveNodes(db: DatabaseSync): GmNode[] {
   return (db.prepare("SELECT * FROM gm_nodes WHERE status='active'").all() as any[]).map(toNode);
 }
 
-export function allEdges(db: Database.Database): GmEdge[] {
+export function allEdges(db: DatabaseSync): GmEdge[] {
   return (db.prepare("SELECT * FROM gm_edges").all() as any[]).map(toEdge);
 }
 
 export function upsertNode(
-  db: Database.Database,
+  db: DatabaseSync,
   c: { type: NodeType; name: string; description: string; content: string },
   sessionId: string,
 ): { node: GmNode; isNew: boolean } {
@@ -91,13 +91,13 @@ export function upsertNode(
   return { node: findByName(db, name)!, isNew: true };
 }
 
-export function deprecate(db: Database.Database, nodeId: string): void {
+export function deprecate(db: DatabaseSync, nodeId: string): void {
   db.prepare("UPDATE gm_nodes SET status='deprecated', updated_at=? WHERE id=?")
     .run(Date.now(), nodeId);
 }
 
 /** 合并两个节点：keepId 保留，mergeId 标记 deprecated，边迁移 */
-export function mergeNodes(db: Database.Database, keepId: string, mergeId: string): void {
+export function mergeNodes(db: DatabaseSync, keepId: string, mergeId: string): void {
   const keep = findById(db, keepId);
   const merge = findById(db, mergeId);
   if (!keep || !merge) return;
@@ -132,31 +132,39 @@ export function mergeNodes(db: Database.Database, keepId: string, mergeId: strin
 }
 
 /** 批量更新 PageRank 分数 */
-export function updatePageranks(db: Database.Database, scores: Map<string, number>): void {
+export function updatePageranks(db: DatabaseSync, scores: Map<string, number>): void {
   const stmt = db.prepare("UPDATE gm_nodes SET pagerank=? WHERE id=?");
-  const tx = db.transaction(() => {
+  db.exec("BEGIN");
+  try {
     for (const [id, score] of scores) {
       stmt.run(score, id);
     }
-  });
-  tx();
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
+  }
 }
 
 /** 批量更新社区 ID */
-export function updateCommunities(db: Database.Database, labels: Map<string, string>): void {
+export function updateCommunities(db: DatabaseSync, labels: Map<string, string>): void {
   const stmt = db.prepare("UPDATE gm_nodes SET community_id=? WHERE id=?");
-  const tx = db.transaction(() => {
+  db.exec("BEGIN");
+  try {
     for (const [id, cid] of labels) {
       stmt.run(cid, id);
     }
-  });
-  tx();
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
+  }
 }
 
 // ─── 边 CRUD ─────────────────────────────────────────────────
 
 export function upsertEdge(
-  db: Database.Database,
+  db: DatabaseSync,
   e: { fromId: string; toId: string; type: EdgeType; instruction: string; condition?: string; sessionId: string },
 ): void {
   const ex = db.prepare("SELECT id FROM gm_edges WHERE from_id=? AND to_id=? AND type=?")
@@ -171,11 +179,11 @@ export function upsertEdge(
     .run(uid("e"), e.fromId, e.toId, e.type, e.instruction, e.condition ?? null, e.sessionId, Date.now());
 }
 
-export function edgesFrom(db: Database.Database, id: string): GmEdge[] {
+export function edgesFrom(db: DatabaseSync, id: string): GmEdge[] {
   return (db.prepare("SELECT * FROM gm_edges WHERE from_id=?").all(id) as any[]).map(toEdge);
 }
 
-export function edgesTo(db: Database.Database, id: string): GmEdge[] {
+export function edgesTo(db: DatabaseSync, id: string): GmEdge[] {
   return (db.prepare("SELECT * FROM gm_edges WHERE to_id=?").all(id) as any[]).map(toEdge);
 }
 
@@ -183,7 +191,7 @@ export function edgesTo(db: Database.Database, id: string): GmEdge[] {
 
 let _fts5Available: boolean | null = null;
 
-function fts5Available(db: Database.Database): boolean {
+function fts5Available(db: DatabaseSync): boolean {
   if (_fts5Available !== null) return _fts5Available;
   try {
     db.prepare("SELECT * FROM gm_nodes_fts LIMIT 0").all();
@@ -194,7 +202,7 @@ function fts5Available(db: Database.Database): boolean {
   return _fts5Available;
 }
 
-export function searchNodes(db: Database.Database, query: string, limit = 6): GmNode[] {
+export function searchNodes(db: DatabaseSync, query: string, limit = 6): GmNode[] {
   const terms = query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
   if (!terms.length) return topNodes(db, limit);
 
@@ -220,7 +228,7 @@ export function searchNodes(db: Database.Database, query: string, limit = 6): Gm
 }
 
 /** 热门节点：综合 pagerank + validatedCount 排序 */
-export function topNodes(db: Database.Database, limit = 6): GmNode[] {
+export function topNodes(db: DatabaseSync, limit = 6): GmNode[] {
   return (db.prepare(`
     SELECT * FROM gm_nodes WHERE status='active'
     ORDER BY pagerank DESC, validated_count DESC, updated_at DESC LIMIT ?
@@ -230,7 +238,7 @@ export function topNodes(db: Database.Database, limit = 6): GmNode[] {
 // ─── 递归 CTE 图遍历 ────────────────────────────────────────
 
 export function graphWalk(
-  db: Database.Database,
+  db: DatabaseSync,
   seedIds: string[],
   maxDepth: number,
 ): { nodes: GmNode[]; edges: GmEdge[] } {
@@ -269,7 +277,7 @@ export function graphWalk(
 
 // ─── 按 session 查询 ────────────────────────────────────────
 
-export function getBySession(db: Database.Database, sessionId: string): GmNode[] {
+export function getBySession(db: DatabaseSync, sessionId: string): GmNode[] {
   return (db.prepare(`
     SELECT DISTINCT n.* FROM gm_nodes n, json_each(n.source_sessions) j
     WHERE j.value = ? AND n.status = 'active'
@@ -279,14 +287,14 @@ export function getBySession(db: Database.Database, sessionId: string): GmNode[]
 // ─── 消息 CRUD ───────────────────────────────────────────────
 
 export function saveMessage(
-  db: Database.Database, sid: string, turn: number, role: string, content: unknown
+  db: DatabaseSync, sid: string, turn: number, role: string, content: unknown
 ): void {
   db.prepare(`INSERT OR IGNORE INTO gm_messages (id, session_id, turn_index, role, content, created_at)
     VALUES (?,?,?,?,?,?)`)
     .run(uid("m"), sid, turn, role, JSON.stringify(content), Date.now());
 }
 
-export function getMessages(db: Database.Database, sid: string, limit?: number): any[] {
+export function getMessages(db: DatabaseSync, sid: string, limit?: number): any[] {
   if (limit) {
     return db.prepare("SELECT * FROM gm_messages WHERE session_id=? ORDER BY turn_index DESC LIMIT ?")
       .all(sid, limit) as any[];
@@ -295,37 +303,37 @@ export function getMessages(db: Database.Database, sid: string, limit?: number):
     .all(sid) as any[];
 }
 
-export function getUnextracted(db: Database.Database, sid: string, limit: number): any[] {
+export function getUnextracted(db: DatabaseSync, sid: string, limit: number): any[] {
   return db.prepare("SELECT * FROM gm_messages WHERE session_id=? AND extracted=0 ORDER BY turn_index LIMIT ?")
     .all(sid, limit) as any[];
 }
 
-export function markExtracted(db: Database.Database, sid: string, upToTurn: number): void {
+export function markExtracted(db: DatabaseSync, sid: string, upToTurn: number): void {
   db.prepare("UPDATE gm_messages SET extracted=1 WHERE session_id=? AND turn_index<=?")
     .run(sid, upToTurn);
 }
 
 // ─── 信号 CRUD ───────────────────────────────────────────────
 
-export function saveSignal(db: Database.Database, sid: string, s: Signal): void {
+export function saveSignal(db: DatabaseSync, sid: string, s: Signal): void {
   db.prepare(`INSERT INTO gm_signals (id, session_id, turn_index, type, data, created_at)
     VALUES (?,?,?,?,?,?)`)
     .run(uid("s"), sid, s.turnIndex, s.type, JSON.stringify(s.data), Date.now());
 }
 
-export function pendingSignals(db: Database.Database, sid: string): Signal[] {
+export function pendingSignals(db: DatabaseSync, sid: string): Signal[] {
   return (db.prepare("SELECT * FROM gm_signals WHERE session_id=? AND processed=0 ORDER BY turn_index")
     .all(sid) as any[])
     .map(r => ({ type: r.type, turnIndex: r.turn_index, data: JSON.parse(r.data) }));
 }
 
-export function markSignalsDone(db: Database.Database, sid: string): void {
+export function markSignalsDone(db: DatabaseSync, sid: string): void {
   db.prepare("UPDATE gm_signals SET processed=1 WHERE session_id=?").run(sid);
 }
 
 // ─── 统计 ────────────────────────────────────────────────────
 
-export function getStats(db: Database.Database): {
+export function getStats(db: DatabaseSync): {
   totalNodes: number;
   byType: Record<string, number>;
   totalEdges: number;
@@ -350,35 +358,35 @@ export function getStats(db: Database.Database): {
 
 // ─── 向量存储 + 搜索 ────────────────────────────────────────
 
-export function saveVector(db: Database.Database, nodeId: string, content: string, vec: number[]): void {
+export function saveVector(db: DatabaseSync, nodeId: string, content: string, vec: number[]): void {
   const hash = createHash("md5").update(content).digest("hex");
-  const blob = Buffer.from(new Float32Array(vec).buffer);
+  const f32 = new Float32Array(vec);
+  const blob = new Uint8Array(f32.buffer, f32.byteOffset, f32.byteLength);
   db.prepare(`INSERT INTO gm_vectors (node_id, content_hash, embedding) VALUES (?,?,?)
     ON CONFLICT(node_id) DO UPDATE SET content_hash=excluded.content_hash, embedding=excluded.embedding`)
     .run(nodeId, hash, blob);
 }
 
-export function getVectorHash(db: Database.Database, nodeId: string): string | null {
+export function getVectorHash(db: DatabaseSync, nodeId: string): string | null {
   return (db.prepare("SELECT content_hash FROM gm_vectors WHERE node_id=?").get(nodeId) as any)?.content_hash ?? null;
 }
 
 /** 获取所有向量（供去重/聚类用） */
-export function getAllVectors(db: Database.Database): Array<{ nodeId: string; embedding: Float32Array }> {
+export function getAllVectors(db: DatabaseSync): Array<{ nodeId: string; embedding: Float32Array }> {
   const rows = db.prepare(`
     SELECT v.node_id, v.embedding FROM gm_vectors v
     JOIN gm_nodes n ON n.id = v.node_id WHERE n.status = 'active'
   `).all() as any[];
   return rows.map(r => {
-    const buf = Buffer.from(r.embedding);
-    // Buffer 可能有 byteOffset，必须 slice 出精确范围
+    const raw = r.embedding as Uint8Array;
     return {
       nodeId: r.node_id,
-      embedding: new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)),
+      embedding: new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / 4),
     };
   });
 }
 
-export function vectorSearch(db: Database.Database, queryVec: number[], limit: number, minScore = 0.35): GmNode[] {
+export function vectorSearch(db: DatabaseSync, queryVec: number[], limit: number, minScore = 0.35): GmNode[] {
   const rows = db.prepare(`
     SELECT v.node_id, v.embedding, n.*
     FROM gm_vectors v JOIN gm_nodes n ON n.id = v.node_id
@@ -393,8 +401,8 @@ export function vectorSearch(db: Database.Database, queryVec: number[], limit: n
 
   return rows
     .map(row => {
-      const buf = Buffer.from(row.embedding);
-      const v = new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+      const raw = row.embedding as Uint8Array;
+      const v = new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / 4);
       let dot = 0, vNorm = 0;
       const len = Math.min(v.length, q.length);
       for (let i = 0; i < len; i++) {

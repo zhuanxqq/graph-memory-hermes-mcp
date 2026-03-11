@@ -5,23 +5,23 @@
  * Email: Wywelljob@gmail.com
  */
 
-import Database from "better-sqlite3";
+import { DatabaseSync } from "@photostructure/sqlite";
 import { mkdirSync } from "fs";
 import { homedir } from "os";
 
-let _db: Database.Database | null = null;
+let _db: DatabaseSync | null = null;
 
 export function resolvePath(p: string): string {
   return p.replace(/^~/, homedir());
 }
 
-export function getDb(dbPath: string): Database.Database {
+export function getDb(dbPath: string): DatabaseSync {
   if (_db) return _db;
   const resolved = resolvePath(dbPath);
   mkdirSync(resolved.substring(0, resolved.lastIndexOf("/")), { recursive: true });
   _db = new Database(resolved);
-  _db.pragma("journal_mode = WAL");
-  _db.pragma("foreign_keys = ON");
+  _db.exec("PRAGMA journal_mode = WAL");
+  _db.exec("PRAGMA foreign_keys = ON");
   migrate(_db);
   return _db;
 }
@@ -31,7 +31,7 @@ export function closeDb(): void {
   if (_db) { _db.close(); _db = null; }
 }
 
-function migrate(db: Database.Database): void {
+function migrate(db: DatabaseSync): void {
   db.exec(`CREATE TABLE IF NOT EXISTS _migrations (v INTEGER PRIMARY KEY, at INTEGER NOT NULL)`);
   const cur = (db.prepare("SELECT MAX(v) as v FROM _migrations").get() as any)?.v ?? 0;
   const steps = [m1_core, m2_messages, m3_signals, m4_fts5, m5_vectors];
@@ -43,7 +43,7 @@ function migrate(db: Database.Database): void {
 
 // ─── 核心表：节点 + 边 ──────────────────────────────────────
 
-function m1_core(db: Database.Database): void {
+function m1_core(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS gm_nodes (
       id              TEXT PRIMARY KEY,
@@ -80,7 +80,7 @@ function m1_core(db: Database.Database): void {
 
 // ─── 消息存储 ────────────────────────────────────────────────
 
-function m2_messages(db: Database.Database): void {
+function m2_messages(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS gm_messages (
       id          TEXT PRIMARY KEY,
@@ -97,7 +97,7 @@ function m2_messages(db: Database.Database): void {
 
 // ─── 信号存储 ────────────────────────────────────────────────
 
-function m3_signals(db: Database.Database): void {
+function m3_signals(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS gm_signals (
       id          TEXT PRIMARY KEY,
@@ -114,7 +114,7 @@ function m3_signals(db: Database.Database): void {
 
 // ─── FTS5 全文索引 ───────────────────────────────────────────
 
-function m4_fts5(db: Database.Database): void {
+function m4_fts5(db: DatabaseSync): void {
   try {
     db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS gm_nodes_fts USING fts5(
@@ -148,7 +148,7 @@ function m4_fts5(db: Database.Database): void {
 
 // ─── 向量存储 ────────────────────────────────────────────────
 
-function m5_vectors(db: Database.Database): void {
+function m5_vectors(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS gm_vectors (
       node_id      TEXT PRIMARY KEY REFERENCES gm_nodes(id),

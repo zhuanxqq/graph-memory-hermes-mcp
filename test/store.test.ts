@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import Database from "better-sqlite3";
+import { DatabaseSync } from "@photostructure/sqlite";
 import { createTestDb, insertNode, insertEdge } from "./helpers.ts";
 import {
   findByName, findById, upsertNode, upsertEdge, deprecate,
@@ -17,7 +17,7 @@ import {
   getStats, saveVector, vectorSearch, getAllVectors,
 } from "../src/store/store.ts";
 
-let db: Database.Database;
+let db: DatabaseSync;
 
 beforeEach(() => {
   db = createTestDb();
