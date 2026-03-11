@@ -19,7 +19,7 @@ export function getDb(dbPath: string): DatabaseSync {
   if (_db) return _db;
   const resolved = resolvePath(dbPath);
   mkdirSync(resolved.substring(0, resolved.lastIndexOf("/")), { recursive: true });
-  _db = new Database(resolved);
+  _db = new DatabaseSync(resolved);
   _db.exec("PRAGMA journal_mode = WAL");
   _db.exec("PRAGMA foreign_keys = ON");
   migrate(_db);
