@@ -5,7 +5,8 @@
 <h1 align="center">graph-memory</h1>
 
 <p align="center">
-  <strong>Knowledge Graph Context Engine for OpenClaw</strong><br>
+  <strong>Knowledge Graph Memory MCP Server</strong><br>
+  For Hermes and other MCP-compatible agents<br>
   By <a href="mailto:Wywelljob@gmail.com">adoresever</a> · MIT License
 </p>
 
@@ -44,11 +45,11 @@ When conversations grow long, agents lose track of what happened. graph-memory s
 
 > *58 nodes, 40 edges, 3 communities — automatically extracted from conversations. Right panel shows the knowledge graph with community clusters (GitHub ops, B站 MCP, session management). Left panel shows agent using `gm_stats` and `gm_search` tools.*
 
-## What's new in v2.0
+## Core features
 
 ### Community-aware recall
 
-Recall now runs **two parallel paths** that merge results:
+Recall runs **two parallel paths** that merge results:
 
 - **Precise path**: vector/FTS5 search → community expansion → graph walk → PPR ranking
 - **Generalized path**: query vector vs community summary embeddings → community members → PPR ranking
@@ -57,25 +58,17 @@ Community summaries are generated immediately after each community detection cyc
 
 ### Episodic context (conversation traces)
 
-The top 3 PPR-ranked nodes now pull their **original user/assistant conversation snippets** into the context. The agent sees not just structured triples, but the actual dialogue that produced them — improving accuracy when reapplying past solutions.
+The top 3 PPR-ranked nodes pull their **original user/assistant conversation snippets** into the context. The agent sees not just structured triples, but the actual dialogue that produced them — improving accuracy when reapplying past solutions.
 
 ### Universal embedding support
 
-The embedding module now uses raw `fetch` instead of the `openai` SDK, making it compatible with **any OpenAI-compatible endpoint** out of the box:
+The embedding module uses raw `fetch` instead of the `openai` SDK, making it compatible with **any OpenAI-compatible endpoint** out of the box:
 
 - OpenAI, Azure OpenAI
 - Alibaba DashScope (`text-embedding-v4`)
 - MiniMax (`embo-01`)
 - Ollama, llama.cpp, vLLM (local models)
 - Any endpoint that implements `POST /embeddings`
-
-### Windows one-click installer
-
-v2.0 ships a **Windows installer** (`.exe`). Download from [Releases](https://github.com/adoresever/graph-memory/releases):
-
-1. Download `graph-memory-installer-win-x64.exe`
-2. Run the installer — it auto-detects your OpenClaw installation
-3. The installer configures `plugins.slots.contextEngine`, adds the plugin entry, and restarts the gateway
 
 ## Real-world results
 

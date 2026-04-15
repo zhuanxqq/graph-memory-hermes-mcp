@@ -5,7 +5,8 @@
 <h1 align="center">graph-memory</h1>
 
 <p align="center">
-  <strong>OpenClaw 知识图谱上下文引擎插件</strong><br>
+  <strong>知识图谱记忆 MCP Server</strong><br>
+  供 Hermes 及其他兼容 MCP 的 Agent 使用<br>
   作者 <a href="mailto:Wywelljob@gmail.com">adoresever</a> · MIT 许可证
 </p>
 
@@ -46,11 +47,11 @@
 
 > *58 个节点、40 条边、3 个社区——全部从对话中自动提取。右侧面板展示知识图谱的社区聚类（GitHub 操作、B站 MCP、会话管理）。左侧面板展示 Agent 使用 `gm_stats` 和 `gm_search` 工具查询图谱。*
 
-## v2.0 新特性
+## 核心特性
 
 ### 社区感知召回（双路径并行）
 
-召回现在有**两条并行路径**，结果合并去重：
+召回有**两条并行路径**，结果合并去重：
 
 - **精确路径**：向量/FTS5 搜索 → 社区扩展 → 图遍历 → 个性化 PageRank 排序
 - **泛化路径**：查询向量 vs 社区摘要 embedding → 匹配社区成员 → 个性化 PageRank 排序
@@ -59,25 +60,17 @@
 
 ###  episodic 上下文（对话痕迹）
 
-排名前 3 的 PPR 节点现在会将它们**原始的用户/ assistant 对话片段**一并拉入上下文。Agent 看到的不仅是结构化的三元组，还有产生这些知识的真实对话——在复用旧方案时准确率更高。
+排名前 3 的 PPR 节点会将它们**原始的用户/ assistant 对话片段**一并拉入上下文。Agent 看到的不仅是结构化的三元组，还有产生这些知识的真实对话——在复用旧方案时准确率更高。
 
 ### 通用 Embedding 支持
 
-Embedding 模块现在使用原生 `fetch` 代替 `openai` SDK，开箱即可兼容**任何 OpenAI 兼容端点**：
+Embedding 模块使用原生 `fetch` 代替 `openai` SDK，开箱即可兼容**任何 OpenAI 兼容端点**：
 
 - OpenAI、Azure OpenAI
 - 阿里云 DashScope（`text-embedding-v4`）
 - MiniMax（`embo-01`）
 - Ollama、llama.cpp、vLLM（本地模型）
 - 任何实现了 `POST /embeddings` 的端点
-
-### Windows 一键安装
-
-v2.0 提供 **Windows 安装器**（`.exe`），从 [Releases](https://github.com/adoresever/graph-memory/releases) 下载：
-
-1. 下载 `graph-memory-installer-win-x64.exe`
-2. 运行安装器——自动检测 OpenClaw 安装位置
-3. 自动配置 `plugins.slots.contextEngine`、添加插件条目并重启 gateway
 
 ## 实测效果
 
