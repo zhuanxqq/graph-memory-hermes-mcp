@@ -5,8 +5,8 @@
  * Email: Wywelljob@gmail.com
  */
 
-import type { GmConfig, ExtractionResult, FinalizeResult } from "../types.ts";
-import type { CompleteFn } from "../engine/llm.ts";
+import type { GmConfig, ExtractionResult, FinalizeResult } from "../types.js";
+import type { CompleteFn } from "../engine/llm.js";
 
 // ─── 节点/边合法值 ──────────────────────────────────────────────
 
@@ -326,16 +326,93 @@ export class Extractor {
 
 // ─── JSON 提取 ───────────────────────────────────────────────
 
+function sanitizeJsonLike(raw: string): string {
+  let out = "";
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inString) {
+      if (escape) {
+        out += ch;
+        escape = false;
+        continue;
+      }
+      if (ch === "\\") {
+        out += ch;
+        escape = true;
+        continue;
+      }
+      if (ch === '"') {
+        out += ch;
+        inString = false;
+        continue;
+      }
+      if (ch === "\n") { out += "\\n"; continue; }
+      if (ch === "\r") { out += "\\r"; continue; }
+      if (ch === "\t") { out += "\\t"; continue; }
+      out += ch;
+      continue;
+    }
+    if (ch === '"') {
+      out += ch;
+      inString = true;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
 function extractJson(raw: string): string {
   let s = raw.trim();
   s = s.replace(/<think>[\s\S]*?<\/think>/gi, "");
   s = s.replace(/<think>[\s\S]*/gi, "");
   s = s.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?\s*```\s*$/i, "");
   s = s.trim();
-  if (s.startsWith("{") && s.endsWith("}")) return s;
-  if (s.startsWith("[") && s.endsWith("]")) return s;
+
+  // Find first JSON object/array by matching brackets
+  function findBalanced(text: string, open: string, close: string): string | null {
+    const start = text.indexOf(open);
+    if (start === -1) return null;
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (escape) {
+          escape = false;
+        } else if (ch === "\\") {
+          escape = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+      if (ch === open) {
+        depth++;
+      } else if (ch === close) {
+        depth--;
+        if (depth === 0) {
+          return text.slice(start, i + 1);
+        }
+      }
+    }
+    return null;
+  }
+
+  const obj = findBalanced(s, "{", "}");
+  if (obj) return sanitizeJsonLike(obj);
+  const arr = findBalanced(s, "[", "]");
+  if (arr) return sanitizeJsonLike(arr);
+
   const first = s.indexOf("{");
   const last = s.lastIndexOf("}");
-  if (first !== -1 && last > first) return s.slice(first, last + 1);
-  return s;
+  if (first !== -1 && last > first) return sanitizeJsonLike(s.slice(first, last + 1));
+  return sanitizeJsonLike(s);
 }

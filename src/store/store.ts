@@ -7,7 +7,7 @@
 
 import { DatabaseSync, type DatabaseSyncInstance } from "@photostructure/sqlite";
 import { createHash } from "crypto";
-import type { GmNode, GmEdge, EdgeType, NodeType, Signal } from "../types.ts";
+import type { GmNode, GmEdge, EdgeType, NodeType, Signal } from "../types.js";
 
 // ─── 工具 ─────────────────────────────────────────────────────
 
@@ -288,10 +288,18 @@ export function getBySession(db: DatabaseSyncInstance, sessionId: string): GmNod
 
 export function saveMessage(
   db: DatabaseSyncInstance, sid: string, turn: number, role: string, content: unknown
-): void {
-  db.prepare(`INSERT OR IGNORE INTO gm_messages (id, session_id, turn_index, role, content, created_at)
+): boolean {
+  const contentStr = JSON.stringify(content);
+  // Content-level dedup: skip if identical payload exists in last 24h
+  const recent = db.prepare(
+    "SELECT id FROM gm_messages WHERE session_id=? AND role=? AND content=? AND created_at > ?"
+  ).get(sid, role, contentStr, Date.now() - 86400000) as any;
+  if (recent) return false;
+
+  db.prepare(`INSERT INTO gm_messages (id, session_id, turn_index, role, content, created_at)
     VALUES (?,?,?,?,?,?)`)
-    .run(uid("m"), sid, turn, role, JSON.stringify(content), Date.now());
+    .run(uid("m"), sid, turn, role, contentStr, Date.now());
+  return true;
 }
 
 export function getMessages(db: DatabaseSyncInstance, sid: string, limit?: number): any[] {

@@ -16,12 +16,13 @@
  */
 
 import { DatabaseSync, type DatabaseSyncInstance } from "@photostructure/sqlite";
-import type { GmConfig } from "../types.ts";
-import type { CompleteFn } from "../engine/llm.ts";
-import type { EmbedFn } from "../engine/embed.ts";
-import { computeGlobalPageRank, invalidateGraphCache, type GlobalPageRankResult } from "./pagerank.ts";
-import { detectCommunities, summarizeCommunities, type CommunityResult } from "./community.ts";
-import { dedup, type DedupResult } from "./dedup.ts";
+import type { GmConfig } from "../types.js";
+import type { CompleteFn } from "../engine/llm.js";
+import type { EmbedFn } from "../engine/embed.js";
+import { computeGlobalPageRank, invalidateGraphCache, type GlobalPageRankResult } from "./pagerank.js";
+import { detectCommunities, summarizeCommunities, type CommunityResult } from "./community.js";
+import { dedup, type DedupResult } from "./dedup.js";
+import { Recaller } from "../recaller/recall.js";
 
 export interface MaintenanceResult {
   dedup: DedupResult;
@@ -62,6 +63,31 @@ export async function runMaintenance(
     } catch (err) {
       if (process.env.GM_DEBUG) {
         console.log(`  [DEBUG] maintenance: community summarization failed: ${err}`);
+      }
+    }
+  }
+
+  // 5. 补全缺失的 node embeddings
+  let syncedEmbeddings = 0;
+  if (embedFn) {
+    try {
+      const recaller = new Recaller(db, cfg);
+      recaller.setEmbedFn(embedFn);
+      const nodesWithoutVectors = db.prepare(`
+        SELECT n.* FROM gm_nodes n
+        LEFT JOIN gm_vectors v ON n.id = v.node_id
+        WHERE n.status = 'active' AND v.node_id IS NULL
+      `).all() as any[];
+      for (const node of nodesWithoutVectors) {
+        await recaller.syncEmbed(node);
+        syncedEmbeddings++;
+      }
+      if (syncedEmbeddings > 0 && process.env.GM_DEBUG) {
+        console.log(`  [DEBUG] maintenance: synced ${syncedEmbeddings} node embeddings`);
+      }
+    } catch (err) {
+      if (process.env.GM_DEBUG) {
+        console.log(`  [DEBUG] maintenance: embedding sync failed: ${err}`);
       }
     }
   }

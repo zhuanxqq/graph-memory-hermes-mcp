@@ -142,7 +142,7 @@ export interface GmConfig {
 }
 
 export const DEFAULT_CONFIG: GmConfig = {
-  dbPath: "~/.openclaw/graph-memory.db",
+  dbPath: "~/.hermes/graph-memory.db",
   compactTurnCount: 6,
   recallMaxNodes: 6,
   recallMaxDepth: 2,

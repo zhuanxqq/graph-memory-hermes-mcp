@@ -1,16 +1,16 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "esModuleInterop": true,
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
     "strict": true,
+    "downlevelIteration": true,
     "skipLibCheck": true,
     "outDir": "dist",
     "rootDir": ".",
     "baseUrl": "."
   },
-  "include": ["src/**/*.ts", "index.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "mcp-server.ts", "scripts/**/*.ts"],
+  "exclude": ["test/**/*.ts", "dist", "node_modules"]
 }
