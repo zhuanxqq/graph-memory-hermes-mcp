@@ -22,6 +22,12 @@
   <img src="docs/images/hero.png" alt="graph-memory overview" width="90%" />
 </p>
 
+## Acknowledgment
+
+This repository is a **fork and MCP adaptation** of the original [adoresever/graph-memory](https://github.com/adoresever/graph-memory).
+All core knowledge-graph engine logic — extraction, dual-path recall, Personalized PageRank, community detection, and vector dedup — was created by **[adoresever](https://github.com/adoresever)**.
+This fork only wraps the engine as a standalone **MCP Server** for Hermes and other MCP-compatible agents.
+
 ## What it does
 
 When conversations grow long, agents lose track of what happened. graph-memory solves three problems at once:
@@ -132,13 +138,12 @@ Both paths run in parallel. Precise results take priority; generalized results f
 ```
 Message in → ingest (zero LLM)
   ├─ All messages saved to gm_messages
-  └─ turn_index continues from DB max (survives gateway restart)
+  └─ turn_index continues from DB max (survives restart)
 
 assemble (zero LLM)
-  ├─ Graph nodes → XML with community grouping (systemPromptAddition)
+  ├─ Graph nodes → XML with community grouping
   ├─ PPR ranking decides injection priority
   ├─ Episodic traces for top 3 nodes
-  ├─ Content normalization (prevents OpenClaw content.filter crash)
   └─ Keep last turn raw messages
 
 afterTurn (async, non-blocking)
@@ -150,7 +155,7 @@ session_end
   ├─ finalize (LLM): EVENT → SKILL promotion
   └─ maintenance: dedup → PageRank → community detection
 
-Next session → before_prompt_build
+Next session → recall
   ├─ Dual-path recall (precise + generalized)
   └─ Personalized PageRank ranking → inject into context
 ```
@@ -168,191 +173,94 @@ Unlike global PageRank, PPR ranks nodes **relative to your current query**:
 
 ### Prerequisites
 
-- [OpenClaw](https://github.com/openclaw/openclaw) (v2026.3.x+)
 - Node.js 22+
+- npm / pnpm
 
-### Windows users
-
-Download the installer from [Releases](https://github.com/adoresever/graph-memory/releases):
-
-```
-graph-memory-installer-win-x64.exe
-```
-
-The installer handles everything: plugin installation, context engine activation, and gateway restart. After running, skip to [Step 3: Configure LLM and Embedding](#step-3-configure-llm-and-embedding).
-
-### Step 1: Install the plugin
-
-Choose one of three methods:
-
-**Option A — From npm registry** (recommended):
+### Build from source
 
 ```bash
-pnpm openclaw plugins install graph-memory
-```
-
-No `node-gyp`, no manual compilation. The SQLite driver (`@photostructure/sqlite`) ships prebuilt binaries — works with OpenClaw's `--ignore-scripts` install.
-
-**Option B — From GitHub**:
-
-```bash
-pnpm openclaw plugins install github:adoresever/graph-memory
-```
-
-**Option C — From source** (for development or custom modifications):
-
-```bash
-git clone https://github.com/adoresever/graph-memory.git
-cd graph-memory
+git clone https://github.com/zhuanxqq/graph-memory-hermes-mcp.git
+cd graph-memory-hermes-mcp
 npm install
-npx vitest run   # verify 80 tests pass
-pnpm openclaw plugins install .
+npm run build        # compiles TypeScript to dist/
+npm test             # verify 80 tests pass
 ```
 
-### Step 2: Activate context engine
+After build, the MCP server entry is `dist/mcp-server.js`.
 
-This is the **critical step** most people miss. graph-memory must be registered as the context engine, otherwise OpenClaw will only use it for recall but **won't ingest messages or extract knowledge**.
+### Configure environment variables
 
-Edit `~/.openclaw/openclaw.json` and add `plugins.slots`:
-
-```json
-{
-  "plugins": {
-    "slots": {
-      "contextEngine": "graph-memory"
-    },
-    "entries": {
-      "graph-memory": {
-        "enabled": true
-      }
-    }
-  }
-}
-```
-
-Without `"contextEngine": "graph-memory"` in `plugins.slots`, the plugin registers but the `ingest` / `assemble` / `compact` pipeline never fires — you'll see `recall` in logs but zero data in the database.
-
-### Step 3: Configure LLM and Embedding
-
-Add your API credentials inside `plugins.entries.graph-memory.config`:
-
-```json
-{
-  "plugins": {
-    "slots": {
-      "contextEngine": "graph-memory"
-    },
-    "entries": {
-      "graph-memory": {
-        "enabled": true,
-        "config": {
-          "llm": {
-            "apiKey": "your-llm-api-key",
-            "baseURL": "https://api.openai.com/v1",
-            "model": "gpt-4o-mini"
-          },
-          "embedding": {
-            "apiKey": "your-embedding-api-key",
-            "baseURL": "https://api.openai.com/v1",
-            "model": "text-embedding-3-small",
-            "dimensions": 512
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-**LLM** (`config.llm`) — Required. Used for knowledge extraction and community summaries. Any OpenAI-compatible endpoint works. Use a cheap/fast model.
-
-**Embedding** (`config.embedding`) — Optional but recommended. Enables semantic vector search, community-level recall, and vector dedup. Without it, falls back to FTS5 full-text search (still works, just keyword-based).
-
-> **⚠️ Important**: `pnpm openclaw plugins install` may reset your config. Always verify `config.llm` and `config.embedding` are present after reinstalling.
-
-If `config.llm` is not set, graph-memory falls back to the `ANTHROPIC_API_KEY` environment variable + Anthropic API.
-
-### Supported embedding providers
-
-| Provider | baseURL | Model | dimensions |
-|----------|---------|-------|------------|
-| OpenAI | `https://api.openai.com/v1` | `text-embedding-3-small` | 512 |
-| Alibaba DashScope | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `text-embedding-v4` | 1024 |
-| MiniMax | `https://api.minimax.chat/v1` | `embo-01` | 1024 |
-| Ollama | `http://localhost:11434/v1` | `nomic-embed-text` | 768 |
-| llama.cpp | `http://127.0.0.1:8080/v1` | your model name | varies |
-
-Set `dimensions: 0` or omit it entirely if the model doesn't support the `dimensions` parameter.
-
-### Restart and verify
+Create `~/.hermes/graph-memory.env` (or export directly):
 
 ```bash
-pnpm openclaw gateway --verbose
+GRAPH_MEMORY_LLM_API_KEY=your-llm-api-key
+GRAPH_MEMORY_LLM_BASE_URL=https://api.openai.com/v1
+GRAPH_MEMORY_LLM_MODEL=gpt-4o-mini
+
+GRAPH_MEMORY_EMBED_API_KEY=your-embedding-api-key
+GRAPH_MEMORY_EMBED_BASE_URL=https://api.openai.com/v1
+GRAPH_MEMORY_EMBED_MODEL=text-embedding-3-small
 ```
 
-You should see these two lines in the startup log:
-
-```
-[graph-memory] ready | db=~/.openclaw/graph-memory.db | provider=... | model=...
-[graph-memory] vector search ready
-```
-
-If you see `FTS5 search mode` instead of `vector search ready`, your embedding config is missing or the API key is invalid.
-
-After a few rounds of conversation, verify:
+### Run the MCP server
 
 ```bash
-# Check messages are being ingested
-sqlite3 ~/.openclaw/graph-memory.db "SELECT COUNT(*) FROM gm_messages;"
-
-# Check knowledge triples are being extracted
-sqlite3 ~/.openclaw/graph-memory.db "SELECT type, name, description FROM gm_nodes LIMIT 10;"
-
-# Check communities are detected
-sqlite3 ~/.openclaw/graph-memory.db "SELECT id, summary FROM gm_communities;"
-
-# In gateway logs, look for:
-# [graph-memory] extracted N nodes, M edges
-# [graph-memory] recalled N nodes, M edges
+node dist/mcp-server.js
 ```
 
-### Troubleshooting
+You should see:
 
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| `recall` works but `gm_messages` is empty | `plugins.slots.contextEngine` not set | Add `"contextEngine": "graph-memory"` to `plugins.slots` |
-| `FTS5 search mode` instead of `vector search ready` | Embedding not configured or API key invalid | Check `config.embedding` credentials |
-| `No LLM available` error | LLM config missing after plugin reinstall | Re-add `config.llm` to `plugins.entries.graph-memory` |
-| No `extracted` log after `afterTurn` | Gateway restart caused turn_index overlap | Update to v2.0 (fixes msgSeq persistence) |
-| `content.filter is not a function` | OpenClaw expects array content | Update to v2.0 (adds content normalization) |
-| Nodes are empty after many messages | `compactTurnCount` not reached | Default is 7 messages. Keep chatting or set a lower value |
+```
+{"ts":...,"level":"info","source":"graph-memory-mcp","message":"graph-memory-hermes-mcp started on stdio"}
+```
 
-## Agent tools
-
-| Tool | Description |
-|------|-------------|
-| `gm_search` | Search the knowledge graph for relevant skills, events, and solutions |
-| `gm_record` | Manually record knowledge to the graph |
-| `gm_stats` | View graph statistics: nodes, edges, communities, PageRank top nodes |
-| `gm_maintain` | Manually trigger graph maintenance: dedup → PageRank → community detection + summaries |
+If embedding is configured correctly, you will also see `vector search ready` shortly after startup.
 
 ## Configuration
 
-All parameters have defaults. Only set what you want to override.
+All parameters have defaults. Override them by creating `~/.hermes/graph-memory-config.json`:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `dbPath` | `~/.openclaw/graph-memory.db` | SQLite database path |
-| `compactTurnCount` | `7` | Turns between maintenance cycles (PageRank + community + summaries) |
+| `dbPath` | `~/.hermes/graph-memory.db` | SQLite database path |
+| `compactTurnCount` | `7` | Turns between maintenance cycles |
 | `recallMaxNodes` | `6` | Max nodes injected per recall |
 | `recallMaxDepth` | `2` | Graph traversal hops from seed nodes |
 | `dedupThreshold` | `0.90` | Cosine similarity threshold for node dedup |
 | `pagerankDamping` | `0.85` | PPR damping factor |
 | `pagerankIterations` | `20` | PPR iteration count |
 
+## MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `gm_ingest` | Write a message into graph-memory (idempotent by `session_id` + `turn_index`) |
+| `gm_recall` | Recall relevant knowledge via vector/FTS5 + graph traversal + PPR |
+| `gm_record` | Manually record a `TASK` / `SKILL` / `EVENT` node |
+| `gm_stats` | View graph statistics: nodes, edges, communities, top PageRank |
+| `gm_maintain` | Trigger maintenance: dedup → PageRank → community detection + summaries |
+| `gm_config` | Read current runtime configuration (MVP: get only) |
+
+## CLI Usage
+
+A small MCP client is provided for cron jobs or manual testing:
+
+```bash
+# After build
+node dist/scripts/mcp-cli.js gm_stats
+node dist/scripts/mcp-cli.js gm_maintain '{"force":true}'
+node dist/scripts/mcp-cli.js gm_recall '{"query":"Docker deployment"}'
+```
+
+Or run directly with `tsx` during development:
+
+```bash
+npx tsx scripts/mcp-cli.ts gm_stats
+```
+
 ## Database
 
-SQLite via `@photostructure/sqlite` (prebuilt binaries, zero native compilation). Default: `~/.openclaw/graph-memory.db`.
+SQLite via `@photostructure/sqlite` (prebuilt binaries, zero native compilation). Default: `~/.hermes/graph-memory.db`.
 
 | Table | Purpose |
 |-------|---------|
@@ -378,8 +286,8 @@ SQLite via `@photostructure/sqlite` (prebuilt binaries, zero native compilation)
 ## Development
 
 ```bash
-git clone https://github.com/adoresever/graph-memory.git
-cd graph-memory
+git clone https://github.com/zhuanxqq/graph-memory-hermes-mcp.git
+cd graph-memory-hermes-mcp
 npm install
 npm test        # 80 tests
 npx vitest      # watch mode
@@ -388,18 +296,20 @@ npx vitest      # watch mode
 ### Project structure
 
 ```
-graph-memory/
-├── index.ts                     # Plugin entry point
-├── openclaw.plugin.json         # Plugin manifest
+graph-memory-hermes-mcp/
+├── mcp-server.ts                # MCP server entry point
 ├── src/
 │   ├── types.ts                 # Type definitions
 │   ├── store/                   # SQLite CRUD / FTS5 / CTE traversal / community CRUD
 │   ├── engine/                  # LLM (fetch-based) + Embedding (fetch-based, SDK-free)
 │   ├── extractor/               # Knowledge extraction prompts
 │   ├── recaller/                # Dual-path recall (precise + generalized + PPR)
-│   ├── format/                  # Context assembly + transcript repair + content normalization
-│   └── graph/                   # PageRank, community detection + summaries, dedup, maintenance
-└── test/                        # 80 vitest tests
+│   ├── format/                  # Context assembly + transcript repair
+│   ├── graph/                   # PageRank, community detection + summaries, dedup, maintenance
+│   └── mcp/                     # MCP tool schemas + handlers
+├── scripts/                     # CLI helpers and cron scripts
+├── test/                        # 80 vitest tests
+└── config/                      # Optional default config files
 ```
 
 ## License
