@@ -7,7 +7,7 @@
 <p align="center">
   <strong>Knowledge Graph Memory MCP Server</strong><br>
   For Hermes and other MCP-compatible agents<br>
-  By <a href="mailto:Wywelljob@gmail.com">adoresever</a> · MIT License
+  原作者 <a href="mailto:Wywelljob@gmail.com">adoresever</a>
 </p>
 
 <p align="center">
