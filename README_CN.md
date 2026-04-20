@@ -211,19 +211,38 @@ node dist/mcp-server.js
 
 如果 Embedding 配置正确，稍后还会看到 `vector search ready`。
 
-## 配置参数
+## 配置
 
-所有参数都有默认值，如需覆盖可创建 `~/.hermes/graph-memory-config.json`：
+### graph-memory 参数
+
+所有参数都有默认值。通过创建 `~/.hermes/graph-memory-config.json` 覆盖：
 
 | 参数 | 默认值 | 说明 |
 |-----------|---------|-------------|
 | `dbPath` | `~/.hermes/graph-memory.db` | SQLite 数据库路径 |
-| `compactTurnCount` | `7` | 维护周期间隔（轮数） |
-| `recallMaxNodes` | `6` | 每次召回最多注入节点数 |
+| `compactTurnCount` | `7` | 维护周期间隔的对话轮数 |
+| `recallMaxNodes` | `6` | 每次 recall 注入的最大节点数 |
 | `recallMaxDepth` | `2` | 图遍历跳数 |
-| `dedupThreshold` | `0.90` | 向量去重余弦相似度阈值 |
+| `dedupThreshold` | `0.90` | 节点去重的余弦相似度阈值 |
 | `pagerankDamping` | `0.85` | PPR 阻尼系数 |
 | `pagerankIterations` | `20` | PPR 迭代次数 |
+
+### Hermes Agent 配置
+
+在 `~/.hermes/config.yaml` 的 `mcp_servers` 下添加 server：
+
+```yaml
+mcp_servers:
+  graph-memory:
+    command: /path/to/graph-memory-hermes-mcp/node_modules/.bin/tsx
+    args:
+      - /path/to/graph-memory-hermes-mcp/mcp-server.ts
+    env:
+      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/path/to/graph-memory-hermes-mcp/node_modules/.bin
+    connect_timeout: 120   # 推荐：graph-memory 冷启动可能需要额外时间
+```
+
+> **注意：**建议设置 `connect_timeout: 120`。随着知识图谱增长，冷启动初始化（SQLite + vector search）可能超过默认的 60 秒超时，导致 Hermes 静默地跳过工具注册。
 
 ## MCP 工具
 

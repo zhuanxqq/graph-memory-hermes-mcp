@@ -211,6 +211,8 @@ If embedding is configured correctly, you will also see `vector search ready` sh
 
 ## Configuration
 
+### graph-memory parameters
+
 All parameters have defaults. Override them by creating `~/.hermes/graph-memory-config.json`:
 
 | Parameter | Default | Description |
@@ -222,6 +224,23 @@ All parameters have defaults. Override them by creating `~/.hermes/graph-memory-
 | `dedupThreshold` | `0.90` | Cosine similarity threshold for node dedup |
 | `pagerankDamping` | `0.85` | PPR damping factor |
 | `pagerankIterations` | `20` | PPR iteration count |
+
+### Hermes Agent configuration
+
+Add the server to `~/.hermes/config.yaml` under `mcp_servers`:
+
+```yaml
+mcp_servers:
+  graph-memory:
+    command: /path/to/graph-memory-hermes-mcp/node_modules/.bin/tsx
+    args:
+      - /path/to/graph-memory-hermes-mcp/mcp-server.ts
+    env:
+      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/path/to/graph-memory-hermes-mcp/node_modules/.bin
+    connect_timeout: 120   # recommended: graph-memory may need extra time on cold start
+```
+
+> **Note:** `connect_timeout: 120` is recommended. As the knowledge graph grows, cold-start initialization (SQLite + vector search) can exceed the default 60-second timeout, causing Hermes to silently skip registering the tools.
 
 ## MCP Tools
 
